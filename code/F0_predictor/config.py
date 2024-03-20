@@ -1,13 +1,15 @@
-train_datasets = {"ESD":"/home/soumyad/emoconv/ESD/train"}
-val_datasets = {"ESD":"/home/soumyad/emoconv/ESD/val"}
-test_datasets = {"ESD":"/home/soumyad/emoconv/ESD/test"}
+from rootpath import CODE_DIR, DATASET_PATH
+
+train_datasets = {"ESD":f"{DATASET_PATH}/train"}
+val_datasets = {"ESD":f"{DATASET_PATH}/val"}
+test_datasets = {"ESD":f"{DATASET_PATH}/test"}
 
 
-train_tokens_orig = {"ESD":"/ZEST/code/train_esd.txt"}
-val_tokens_orig = {"ESD":"/ZEST/code/val_esd.txt"}
-test_tokens_orig = {"ESD":"/ZEST/code/test_esd.txt"}
+train_tokens_orig = {"ESD":f"{CODE_DIR}/train_esd.txt"}
+val_tokens_orig = {"ESD":f"{CODE_DIR}/val_esd.txt"}
+test_tokens_orig = {"ESD":f"{CODE_DIR}/test_esd.txt"}
 
-f0_file = "ZEST/code/f0.pickle"
+f0_file = f"{CODE_DIR}/f0.pickle"
 hparams = {
         ################################
         # Experiment Parameters        #
@@ -32,7 +34,7 @@ hparams = {
         "prenet_dim":[256,256],
         "max_decoder_steps":2000,
         "stop_threshold":0.5,
-    
+
         # Attention parameters
         "attention_rnn_dim":512,
         "attention_dim":128,

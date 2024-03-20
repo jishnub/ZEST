@@ -15,11 +15,11 @@ import numpy as np
 import soundfile as sf
 import torch
 import torch.utils.data
-import torch.utils.data
 from librosa.filters import mel as librosa_mel_fn
 from librosa.util import normalize
 import os
-import pickle5 as pickle
+import pickle
+from rootpath import CODE_DIR
 
 MAX_WAV_VALUE = 32768.0
 
@@ -110,7 +110,7 @@ def parse_manifest(manifest):
     #reqd_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034", "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
     #for f in reqd_files[1:]:
     with open(manifest) as info:
-        
+
         for line in info.readlines():
             # if f not in line:
             #     continue
@@ -141,7 +141,7 @@ def get_dataset_filelist(h):
 
 
 def parse_speaker(path, method):
-    if type(path) == str:
+    if isinstance(path, str):
         path = Path(path)
 
     if method == 'parent_name':
@@ -288,16 +288,16 @@ class CodeDataset(torch.utils.data.Dataset):
             f0 = torch.tensor(pitch).unsqueeze(0).unsqueeze(0)
             feats['f0'] = f0.squeeze(0)
         if self.multispkr:
-            feats['spkr'] = np.load("/ZEST/code/EASE/EASE_embeddings/" + emo_file_name)
+            feats['spkr'] = np.load(f"{CODE_DIR}/EASE/EASE_embeddings/" + emo_file_name)
 
         if self.spkr_average:
             with open('speakers.pkl', 'rb') as handle:
                 speakers_feat = pickle.load(handle)
             feats['spkr'] = speakers_feat[emo_file_name[:4]]
 
-            if self.f0_feats:
-                feats['f0_stats'] = torch.FloatTensor([mean, std]).view(-1).numpy()
-        
+            # if self.f0_feats:
+            #     feats['f0_stats'] = torch.FloatTensor([mean, std]).view(-1).numpy()
+
         feats["emo_embed"] = emo_embed
 
         return feats, audio.squeeze(0), str(filename), mel_loss.squeeze()

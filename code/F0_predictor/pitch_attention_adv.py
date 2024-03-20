@@ -1,25 +1,26 @@
 import os
 import torch
 import torchaudio
-from einops.layers.torch import Rearrange
+# from einops.layers.torch import Rearrange
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 import logging
 import numpy as np
-import json
+# import json
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import Adam
 import torch.nn as nn
 import random
 from sklearn.metrics import f1_score
 from tqdm import tqdm
-import random
+# import random
 import torch.nn.functional as F
 from config import hparams
 from config import train_tokens_orig, val_tokens_orig, test_tokens_orig, f0_file
-import pickle5 as pickle
+import pickle
 import ast
-import math
+# import math
 from torch.autograd import Function
+from rootpath import CODE_DIR, DATASET_PATH
 
 torch.set_printoptions(profile="full")
 #Logger set
@@ -54,14 +55,14 @@ class MyDataset(Dataset):
             self.f0_feat = pickle.load(handle)
         with open(token_file) as f:
             lines = f.readlines()
-            for l in lines:
-                d = ast.literal_eval(l)
+            for line in lines:
+                d = ast.literal_eval(line)
                 name, tokens = d["audio"], d["hubert"]
                 tokens_l = tokens.split(" ")
                 self.tokens[name.split(os.sep)[-1]] = np.array(tokens_l).astype(int)
 
     def __len__(self):
-        return len(self.wav_files) 
+        return len(self.wav_files)
 
     def getemolabel(self, file_name):
         file_name = int(file_name[5:-4])
@@ -81,19 +82,20 @@ class MyDataset(Dataset):
         speaker_dict = {}
         for ind in range(11, 21):
             speaker_dict["00"+str(ind)] = ind-11
-        speaker_feature = np.load(os.path.join("/folder/to/EASE/embeddings", file_name.replace(".wav", ".npy")))
+        speaker_feature = np.load(os.path.join(f"{CODE_DIR}/EASE/EASE_embeddings",
+                                               file_name.replace(".wav", ".npy")))
 
         return speaker_feature, speaker_dict[spkr_name]
-        
-    def __getitem__(self, audio_ind): 
-        class_id = self.getemolabel(self.wav_files[audio_ind])  
+
+    def __getitem__(self, audio_ind):
+        class_id = self.getemolabel(self.wav_files[audio_ind])
         audio_path = os.path.join(self.folder, self.wav_files[audio_ind])
-        (sig, sr) = torchaudio.load(audio_path)
-        
+        sig, _ = torchaudio.load(audio_path)
+
         sig = sig.numpy()[0, :]
         tokens = self.tokens[self.wav_files[audio_ind]]
         speaker_feat, speaker_label = self.getspkrlabel(self.wav_files[audio_ind])
-        
+
         final_sig = sig
         f0 = self.f0_feat[self.wav_files[audio_ind]]
 
@@ -118,11 +120,11 @@ class WAV2VECModel(nn.Module):
                  wav2vec,
                  output_dim,
                  hidden_dim_emo):
-        
+
         super().__init__()
-        
+
         self.wav2vec = wav2vec
-        
+
         embedding_dim = wav2vec.config.to_dict()['hidden_size']
         self.out = nn.Linear(hidden_dim_emo, output_dim)
         self.out_spkr = nn.Linear(hidden_dim_emo, 10)
@@ -132,7 +134,7 @@ class WAV2VECModel(nn.Module):
         self.conv4 = nn.Conv1d(in_channels=hidden_dim_emo, out_channels=hidden_dim_emo, kernel_size=5, padding=2)
 
         self.relu = nn.ReLU()
-        
+
     def forward(self, aud, alpha):
         aud = aud.squeeze(0)
         hidden_all = list(self.wav2vec(aud).hidden_states)
@@ -152,7 +154,7 @@ class WAV2VECModel(nn.Module):
         embedded_spkr = self.relu(self.conv4(embedded_spkr))
         hidden_spkr = torch.mean(embedded_spkr, -1).squeeze(-1)
         output_spkr = self.out_spkr(hidden_spkr)
-        
+
         return out_emo, output_spkr, emo_hidden, emo_embedded
 
 class CrossAttentionModel(nn.Module):
@@ -171,21 +173,21 @@ class CrossAttentionModel(nn.Module):
                                                     dropout = 0.5,
                                                     bias = True,
                                                     batch_first=True)
-                                                                                                           
+
         self.dropout = nn.Dropout(0.5)
         self.layer_norm = nn.LayerNorm(hidden_dim_q, eps = 1e-6)
         self.layer_norm_1 = nn.LayerNorm(hidden_dim_q, eps = 1e-6)
         self.fc = nn.Linear(self.inter_dim*self.num_heads, hidden_dim_q)
         self.fc_1 = nn.Linear(hidden_dim_q, hidden_dim_q)
         self.relu = nn.ReLU()
-    
+
     def forward(self, query_i, key_i, value_i):
         query = self.fc_q(query_i)
         key = self.fc_k(key_i)
         value = self.fc_v(value_i)
         cross, _ = self.multihead_attn(query, key, value, need_weights = True)
         skip = self.fc(cross)
- 
+
         skip += query_i
         skip = self.relu(skip)
         skip = self.layer_norm(skip)
@@ -194,7 +196,7 @@ class CrossAttentionModel(nn.Module):
         new += skip
         new = self.relu(new)
         out = self.layer_norm_1(new)
-        
+
         return out
 
 class PitchModel(nn.Module):
@@ -203,7 +205,7 @@ class PitchModel(nn.Module):
         self.processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-robust-ft-swbd-300h")
         self.wav2vec = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-robust-ft-swbd-300h", output_hidden_states=True)
         self.encoder = WAV2VECModel(self.wav2vec, 5, hparams["emotion_embedding_dim"])
-        self.embedding = nn.Embedding(101, 128, padding_idx=100)        
+        self.embedding = nn.Embedding(101, 128, padding_idx=100)
         self.fusion = CrossAttentionModel(128, 128)
         self.linear_layer = nn.Linear(128, 1)
         self.leaky = nn.LeakyReLU()
@@ -229,7 +231,7 @@ class PitchModel(nn.Module):
         return pred_pitch, emo_out, spkr_out, mask
 
 def custom_collate(data):
-    batch_len = len(data)
+    # batch_len = len(data)
     new_data = {"audio":[], "mask":[], "labels":[], "hubert":[], "f0":[], "speaker":[], "speaker_label":[], "names":[]}
     max_len_f0, max_len_hubert, max_len_aud = 0, 0, 0
     for ind in range(len(data)):
@@ -264,13 +266,13 @@ def custom_collate(data):
 
 def create_dataset(mode, bs=24):
     if mode == 'train':
-        folder = "/folder/to/train/audio/files"
+        folder = f"{DATASET_PATH}/train"
         token_file = train_tokens_orig["ESD"]
     elif mode == 'val':
-        folder = "/folder/to/validation/audio/files"
+        folder = f"{DATASET_PATH}/val"
         token_file = val_tokens_orig["ESD"]
     else:
-        folder = "/folder/to/test/audio/files"
+        folder = f"{DATASET_PATH}/test"
         token_file = test_tokens_orig["ESD"]
     dataset = MyDataset(folder, token_file)
     loader = DataLoader(dataset,
@@ -289,7 +291,7 @@ def l2_loss(input, target):
     )
 
 def train():
-    
+
     train_loader = create_dataset("train")
     val_loader = create_dataset("val")
     model = PitchModel(hparams)
@@ -302,14 +304,16 @@ def train():
                 param.requires_grad = True
     model.to(device)
     base_lr = 1e-4
-    parameters = list(model.parameters()) 
+    parameters = list(model.parameters())
     optimizer = Adam([{'params':parameters, 'lr':base_lr}])
     final_val_loss = 1e20
     for e in range(500):
         model.train()
-        tot_loss, tot_correct = 0.0, 0.0
-        val_loss, val_acc = 0.0, 0.0
-        val_correct = 0.0
+        tot_loss = 0.0
+        val_loss = 0.0
+        # tot_loss, tot_correct = 0.0, 0.0
+        # val_loss, val_acc = 0.0, 0.0
+        # val_correct = 0.0
         pred_tr = []
         gt_tr = []
         pred_val = []
@@ -372,7 +376,7 @@ def train():
                 labels = list(labels)
                 gt_val.extend(labels)
         if val_loss < final_val_loss:
-            torch.save(model, 'f0_predictor.pth')
+            torch.save(model.state_dict(), 'f0_predictor.pth')
             final_val_loss = val_loss
         train_loss = tot_loss/tot_train_samples
         train_f1 = f1_score(gt_tr, pred_tr, average='weighted')

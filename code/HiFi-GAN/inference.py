@@ -22,14 +22,16 @@ import torch
 from scipy.io.wavfile import write
 import soundfile as sf
 from dataset_f0recon import CodeDataset, parse_manifest, mel_spectrogram, \
-    MAX_WAV_VALUE, load_audio
-from dataset_f0recon import get_yaapt_f0
+    MAX_WAV_VALUE
+# from dataset_f0recon import CodeDataset, parse_manifest, mel_spectrogram, \
+#     MAX_WAV_VALUE, load_audio
+# from dataset_f0recon import get_yaapt_f0
 from utils import AttrDict
 from models import CodeGenerator
-import amfm_decompy.basic_tools as basic
-import amfm_decompy.pYAAPT as pYAAPT
-from librosa.util import normalize
-
+# import amfm_decompy.basic_tools as basic
+# import amfm_decompy.pYAAPT as pYAAPT
+# from librosa.util import normalize
+from rootpath import CODE_DIR
 
 h = None
 device = None
@@ -167,7 +169,7 @@ def inference(item_index):
         fname_out_name = '_'.join(parts[-3:])[:-4]
     else:
         fname_out_name = Path(filename).stem
-   
+
 
     if int(fname_out_name[5:11]) < 350:
         if h.get('f0_vq_params', None) or h.get('f0_quantizer', None):
@@ -186,7 +188,7 @@ def inference(item_index):
         if 'f0' in new_code:
             del new_code['f0']
             new_code['f0'] = code['f0']
-        
+
         if h.get('multispkr', None) and a.convert:
             print("In conversion")
             reference_files = os.listdir("/folder/to/ESD/test/wavs")
@@ -197,22 +199,23 @@ def inference(item_index):
             source_num = int(fname_out_name[5:11])
             #Change line 199 for setting same/different source/reference utterance
             reference_files = [x for x in reference_files if (int(x[5:11])-source_num)%350!=0]
-            
+
             for i, filename in enumerate(reference_files):
                 print(i, filename)
-                emo_embed = np.load("/ZEST/code/F0_predictor/wav2vec_feats/" + filename.replace(".wav", ".npy"))
-                feats = {}
-                f0 = np.load("/ZEST/code/F0_predictor/pred_DSDT_f0" + fname_out_name + filename.replace(".wav", ".npy"))
+                emo_embed = np.load(f"{CODE_DIR}/F0_predictor/wav2vec_feats/" + filename.replace(".wav", ".npy"))
+                # feats = {}
+                f0 = np.load(f"{CODE_DIR}/F0_predictor/pred_DSDT_f0" + fname_out_name + filename.replace(".wav", ".npy"))
                 f0 = f0.astype(np.float32)
-                trg_f0 = f0
+                # trg_f0 = f0
                 new_f0 = torch.tensor(f0)
                 new_f0 = new_f0.squeeze(-1)
                 code['f0'] = torch.FloatTensor(new_f0).to(device)
-                code['f0'] = code['f0'].unsqueeze(0).unsqueeze(0)                
+                code['f0'] = code['f0'].unsqueeze(0).unsqueeze(0)
                 if code['f0'].shape[-1] > new_code['f0'].shape[-1]:
                     code['f0'] = code['f0'][:, :, :new_code['f0'].shape[-1]]
                 code["emo_embed"] = torch.tensor(emo_embed).unsqueeze(0).to(device)
-                audio, rtf = generate(h, generator, code)
+                # audio, rtf = generate(h, generator, code)
+                audio, _ = generate(h, generator, code)
 
                 output_file = os.path.join(a.output_dir, fname_out_name + filename)
                 audio = librosa.util.normalize(audio.astype(np.float32))
@@ -223,7 +226,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--code_file', default=None)
-    parser.add_argument('--input_code_file', default="/ZEST/code/test_esd.txt")
+    parser.add_argument('--input_code_file', default=f"{CODE_DIR}/test_esd.txt")
     parser.add_argument('--output_dir', default='DSDT')
     parser.add_argument('--emo_folder', default='')
     parser.add_argument('--pitch_folder', default='')

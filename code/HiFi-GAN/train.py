@@ -7,8 +7,6 @@
 # Adapted from https://github.com/jik876/hifi-gan
 
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.filterwarnings(action='ignore', message='.*kernel_size exceeds volume extent.*')
 
 import itertools
 import os
@@ -29,6 +27,8 @@ from utils import plot_spectrogram, scan_checkpoint, load_checkpoint, \
 
 torch.backends.cudnn.benchmark = True
 
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.filterwarnings(action='ignore', message='.*kernel_size exceeds volume extent.*')
 
 def train(rank, local_rank, a, h):
     if h.num_gpus > 1:

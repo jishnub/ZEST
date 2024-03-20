@@ -1,6 +1,6 @@
 {
-    "input_training_file": "/ZEST/code/train_esd.txt",
-    "input_validation_file": "/ZEST/code/val_esd.txt",
+    "input_training_file": "../train_esd.txt",
+    "input_validation_file": "../val_esd.txt",
 
     "resblock": "1",
     "num_gpus": 0,
