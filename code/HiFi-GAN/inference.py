@@ -20,18 +20,18 @@ import librosa
 import numpy as np
 import torch
 from scipy.io.wavfile import write
-import soundfile as sf
-from dataset_f0recon import CodeDataset, parse_manifest, mel_spectrogram, \
+# import soundfile as sf
+from dataset import CodeDataset, parse_manifest, mel_spectrogram, \
     MAX_WAV_VALUE
-# from dataset_f0recon import CodeDataset, parse_manifest, mel_spectrogram, \
+# from dataset import CodeDataset, parse_manifest, mel_spectrogram, \
 #     MAX_WAV_VALUE, load_audio
-# from dataset_f0recon import get_yaapt_f0
+# from dataset import get_yaapt_f0
 from utils import AttrDict
 from models import CodeGenerator
 # import amfm_decompy.basic_tools as basic
 # import amfm_decompy.pYAAPT as pYAAPT
 # from librosa.util import normalize
-from rootpath import CODE_DIR
+CODE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 h = None
 device = None

@@ -5,7 +5,7 @@ from rootpath import DATASET_PATH
 
 FullDatasetPath = os.path.join(DATASET_PATH, "Full_Dataset")
 
-def copyfiles(dataset):
+def copyfiles(dataset, nfiles_per_speaker=10_000):
     dstdir = os.path.join(DATASET_PATH, dataset)
     with open(f'{dataset}_esd.txt', 'r') as f:
         lines = f.readlines()
@@ -20,7 +20,9 @@ def copyfiles(dataset):
                 lines = [x.strip().split('\t') for x in f.readlines()]
                 details = {line[0]:line[2] for line in lines if line[0] in speaker_filenames}
 
-            for f in speaker_filenames:
+            for (ind, f) in enumerate(speaker_filenames):
+                if ind > nfiles_per_speaker:
+                    break
                 src = os.path.join(speakerdir, details[f], f'{f}.wav')
                 dst = os.path.join(dstdir, f'{f}.wav')
                 shutil.copyfile(src, dst)

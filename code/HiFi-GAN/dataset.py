@@ -19,7 +19,8 @@ from librosa.filters import mel as librosa_mel_fn
 from librosa.util import normalize
 import os
 import pickle
-from rootpath import CODE_DIR
+
+CODE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 MAX_WAV_VALUE = 32768.0
 

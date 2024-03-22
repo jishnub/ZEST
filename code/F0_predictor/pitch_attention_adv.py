@@ -290,10 +290,10 @@ def l2_loss(input, target):
         reduction='none'
     )
 
-def train():
+def train(num_epochs=500, bs=8):
 
-    train_loader = create_dataset("train")
-    val_loader = create_dataset("val")
+    train_loader = create_dataset("train", bs)
+    val_loader = create_dataset("val", bs)
     model = PitchModel(hparams)
     unfreeze = [i for i in range(0, 24)]
     for name, param in model.named_parameters():
@@ -307,7 +307,7 @@ def train():
     parameters = list(model.parameters())
     optimizer = Adam([{'params':parameters, 'lr':base_lr}])
     final_val_loss = 1e20
-    for e in range(500):
+    for e in range(num_epochs):
         model.train()
         tot_loss = 0.0
         val_loss = 0.0
