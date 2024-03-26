@@ -1,9 +1,9 @@
 {
-    "input_training_file": "../train_esd.txt",
-    "input_validation_file": "../val_esd.txt",
+    "input_training_file": "../train_esd_trimmed.txt",
+    "input_validation_file": "../val_esd_trimmed.txt",
 
     "resblock": "1",
-    "num_gpus": 0,
+    "num_gpus": 1,
     "batch_size": 32,
     "learning_rate": 0.0002,
     "adam_b1": 0.8,
@@ -32,7 +32,7 @@
     "hop_size": 256,
     "win_size": 1024,
 
-    "f0_stats": "datasets/ESD/esd_f0_stats.pth",
+    "f0_stats": "../esd_f0_stats.pth",
     "f0_normalize": true,
     "f0_feats": false,
     "f0_median": false,

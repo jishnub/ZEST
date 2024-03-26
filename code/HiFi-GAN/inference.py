@@ -18,7 +18,6 @@ from pathlib import Path
 import torch
 import librosa
 import numpy as np
-import torch
 from scipy.io.wavfile import write
 # import soundfile as sf
 from dataset import CodeDataset, parse_manifest, mel_spectrogram, \
@@ -32,6 +31,8 @@ from models import CodeGenerator
 # import amfm_decompy.pYAAPT as pYAAPT
 # from librosa.util import normalize
 CODE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+home = str(Path.home())
+DATADIR = f"{home}/Emotional_Speech_Dataset"
 
 h = None
 device = None
@@ -191,7 +192,7 @@ def inference(item_index):
 
         if h.get('multispkr', None) and a.convert:
             print("In conversion")
-            reference_files = os.listdir("/folder/to/ESD/test/wavs")
+            reference_files = os.listdir(os.path.join(DATADIR, "test"))
             #Change line 194 for setting same/different source/reference speaker
             reference_files = [x for x in reference_files if x[:4] != fname_out_name[:4]]
             reference_files = [x for x in reference_files if int(x[5:11]) >= 350]

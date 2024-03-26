@@ -5,9 +5,9 @@ val_datasets = {"ESD":f"{DATASET_PATH}/val"}
 test_datasets = {"ESD":f"{DATASET_PATH}/test"}
 
 
-train_tokens_orig = {"ESD":f"{CODE_DIR}/train_esd.txt"}
-val_tokens_orig = {"ESD":f"{CODE_DIR}/val_esd.txt"}
-test_tokens_orig = {"ESD":f"{CODE_DIR}/test_esd.txt"}
+train_tokens_orig = {"ESD":f"{CODE_DIR}/train_esd_trimmed.txt"}
+val_tokens_orig = {"ESD":f"{CODE_DIR}/val_esd_trimmed.txt"}
+test_tokens_orig = {"ESD":f"{CODE_DIR}/test_esd_trimmed.txt"}
 
 f0_file = f"{CODE_DIR}/f0.pickle"
 hparams = {
