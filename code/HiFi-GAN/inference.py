@@ -158,10 +158,6 @@ def init_worker(queue, arguments):
 
 @torch.no_grad()
 def inference(item_index):
-    speaker_id = {}
-
-    for ind in range(11, 21):
-        speaker_id["00"+str(ind)] = ind-11
     code, gt_audio, filename, _ = dataset[item_index]
     code = {k: torch.tensor(v).to(device).unsqueeze(0) for k, v in code.items()}
 
@@ -267,8 +263,9 @@ def main():
         cp_g = scan_checkpoint(a.checkpoint_file, 'g_')
     else:
         cp_g = a.checkpoint_file
-    if not os.path.isfile(cp_g) or not os.path.exists(cp_g):
-        print(f"Didn't find checkpoints for {cp_g}")
+
+    if not os.path.isfile(cp_g):
+        print("Didn't find checkpoints for cp_g")
         return
 
     if a.code_file is not None:
@@ -280,7 +277,7 @@ def main():
 
         dataset = [(parse_code(x[1]), None, x[0], None) for x in dataset]
     else:
-        file_list = parse_manifest(a.input_code_file)
+        file_list = parse_manifest(a.input_code_file, True)
         dataset = CodeDataset(file_list, -1, h.code_hop_size, h.n_fft, h.num_mels, h.hop_size, h.win_size,
                               h.sampling_rate, h.fmin, h.fmax, n_cache_reuse=0, fmax_loss=h.fmax_for_loss, device=device,
                               f0=h.get('f0', None), multispkr=h.get('multispkr', None),

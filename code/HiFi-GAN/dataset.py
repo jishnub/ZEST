@@ -105,10 +105,10 @@ mel_basis = {}
 hann_window = {}
 
 
-def parse_manifest(manifest):
+def parse_manifest(manifest, filterfiles=False):
     audio_files = []
     codes = []
-    #reqd_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034", "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
+    reqd_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034", "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
     #for f in reqd_files[1:]:
     with open(manifest) as info:
 
@@ -124,12 +124,17 @@ def parse_manifest(manifest):
                 else:
                     k = 'hubert'
 
-                codes += [torch.LongTensor(
+                filename = Path(sample["audio"])
+                code = torch.LongTensor(
                     [int(x) for x in sample[k].split(' ')]
-                ).numpy()]
-                audio_files += [Path(sample["audio"])]
+                ).numpy()
+                if (not filterfiles) or (filterfiles and filename.stem in reqd_files):
+                    codes.append(code)
+                    audio_files.append(filename)
             else:
-                audio_files += [Path(line.strip())]
+                filename = Path(line.strip())
+                if (not filterfiles) or (filterfiles and filename.stem in reqd_files):
+                    audio_files.append(filename)
 
     return audio_files, codes
 

@@ -181,7 +181,7 @@ def get_f0():
     os.makedirs(CONTOURDIR, exist_ok=True)
 
     model = PitchModel(hparams)
-    model.load_state_dict(torch.load('f0_predictor.pth', map_location=device))
+    model.load_state_dict(torch.load(os.path.join(FILEDIR, 'f0_predictor.pth'), map_location=device))
     model.to(device)
     model.eval()
     loader = create_dataset("test", 1)
