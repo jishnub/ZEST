@@ -19,6 +19,9 @@ from config import hparams
 from pitch_attention_adv import create_dataset
 from torch.autograd import Function
 
+FILEDIR = os.path.dirname(os.path.realpath(__file__))
+CONTOURDIR = os.path.join(FILEDIR, "f0_contours")
+
 torch.set_printoptions(profile="full")
 #Logger set
 logging.basicConfig(
@@ -175,10 +178,10 @@ class PitchModel(nn.Module):
         return pred_pitch, emo_out, spkr_out, mask
 
 def get_f0():
-    os.makedirs("f0_contours", exist_ok=True)
+    os.makedirs(CONTOURDIR, exist_ok=True)
 
     model = PitchModel(hparams)
-    model = torch.load('f0_predictor.pth', map_location=device)
+    model.load_state_dict(torch.load('f0_predictor.pth', map_location=device))
     model.to(device)
     model.eval()
     loader = create_dataset("test", 1)
@@ -195,7 +198,7 @@ def get_f0():
                 target_file_name = names[ind].split(os.sep)[-1].replace("wav", "npy")
                 pitch_pred, _, _, _ = model(inputs, tokens, speaker, mask)
                 pitch_pred = torch.exp(pitch_pred) - 1
-                np.save(os.path.join("f0_contours", target_file_name), pitch_pred[ind, :].cpu().detach().numpy())
+                np.save(os.path.join(CONTOURDIR, target_file_name), pitch_pred[ind, :].cpu().detach().numpy())
     loader = create_dataset("train", 1)
     with torch.no_grad():
         for i, data in enumerate(tqdm(loader)):
@@ -210,7 +213,7 @@ def get_f0():
                 target_file_name = names[ind].split(os.sep)[-1].replace("wav", "npy")
                 pitch_pred, _, _, _ = model(inputs, tokens, speaker, mask)
                 pitch_pred = torch.exp(pitch_pred) - 1
-                np.save(os.path.join("f0_contours", target_file_name), pitch_pred[ind, :].cpu().detach().numpy())
+                np.save(os.path.join(CONTOURDIR, target_file_name), pitch_pred[ind, :].cpu().detach().numpy())
     loader = create_dataset("val", 1)
     with torch.no_grad():
         for i, data in enumerate(tqdm(loader)):
@@ -225,7 +228,7 @@ def get_f0():
                 target_file_name = names[ind].split(os.sep)[-1].replace("wav", "npy")
                 pitch_pred, _, _, _ = model(inputs, tokens, speaker, mask)
                 pitch_pred = torch.exp(pitch_pred) - 1
-                np.save(os.path.join("f0_contours", target_file_name), pitch_pred[ind, :].cpu().detach().numpy())
+                np.save(os.path.join(CONTOURDIR, target_file_name), pitch_pred[ind, :].cpu().detach().numpy())
 
 
 if __name__ == "__main__":

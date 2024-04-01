@@ -21,6 +21,10 @@ import ast
 # import math
 from torch.autograd import Function
 from rootpath import CODE_DIR, DATASET_PATH
+FILEDIR = os.path.join(CODE_DIR, "F0_predictor")
+CHECKPOINTDIR = os.path.join(FILEDIR, "checkpoints")
+if not os.path.isdir(CHECKPOINTDIR):
+    os.makedirs(CHECKPOINTDIR)
 
 torch.set_printoptions(profile="full")
 #Logger set
@@ -290,7 +294,7 @@ def l2_loss(input, target):
         reduction='none'
     )
 
-def train(num_epochs=500, bs=8):
+def train(num_epochs=500, bs=8, restart=True):
 
     train_loader = create_dataset("train", bs)
     val_loader = create_dataset("val", bs)
@@ -307,7 +311,17 @@ def train(num_epochs=500, bs=8):
     parameters = list(model.parameters())
     optimizer = Adam([{'params':parameters, 'lr':base_lr}])
     final_val_loss = 1e20
-    for e in range(num_epochs):
+    # detect saved checkpoint
+    checkpoint_path = os.path.join(CHECKPOINTDIR, 'f0_checkpoint.pth')
+    cpepoch = 0
+    if restart and os.path.isfile(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        cpepoch = checkpoint['epoch']
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+
+    for e in range(cpepoch+1, num_epochs):
         model.train()
         tot_loss = 0.0
         val_loss = 0.0
@@ -376,7 +390,7 @@ def train(num_epochs=500, bs=8):
                 labels = list(labels)
                 gt_val.extend(labels)
         if val_loss < final_val_loss:
-            torch.save(model.state_dict(), 'f0_predictor.pth')
+            torch.save(model.state_dict(), os.path.join(FILEDIR, 'f0_predictor.pth'))
             final_val_loss = val_loss
         train_loss = tot_loss/tot_train_samples
         train_f1 = f1_score(gt_tr, pred_tr, average='weighted')
@@ -389,6 +403,15 @@ def train(num_epochs=500, bs=8):
         logger.info(f"Epoch {e_log}, \
                     Validation Loss {val_loss_log},\
                     Validation Accuracy {val_f1}")
+
+        # save checkpoint
+        if e % 5 == 0:
+            print(f"Saving checkpoint at epoch {e_log}")
+            torch.save({
+                    'epoch': e,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                        }, checkpoint_path)
 
 
 if __name__ == "__main__":

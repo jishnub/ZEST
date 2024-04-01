@@ -12,13 +12,16 @@ import random
 from tqdm import tqdm
 # import random
 # import torch.nn.functional as F
-# from config import hparams
+from config import hparams
 # from config import f0_file
 # import ast
 # import math
 from torch.autograd import Function
 # from pitch_convert import crema_dataset
 from pitch_attention_adv import create_dataset
+
+FILEDIR = os.path.dirname(os.path.realpath(__file__))
+wav2vec_feats_folder = os.path.join(FILEDIR, "wav2vec_feats")
 
 #Logger set
 logging.basicConfig(
@@ -163,12 +166,12 @@ class PitchModel(nn.Module):
         return emo_hidden
 
 def train():
-    wav2vec_feats_folder = "wav2vec_feats"
     os.makedirs(wav2vec_feats_folder, exist_ok=True)
     train_loader = create_dataset("train", 1)
     val_loader = create_dataset("val", 1)
     test_loader = create_dataset("test", 1)
-    model = torch.load('f0_predictor.pth', map_location=device)
+    model = PitchModel(hparams)
+    model.load_state_dict(torch.load(os.path.join(FILEDIR, 'f0_predictor.pth'), map_location=device))
     model.to(device)
     model.eval()
 
@@ -213,5 +216,5 @@ def train():
                 target_file_name = name[ind].replace("wav", "npy")
                 np.save(os.path.join(wav2vec_feats_folder, target_file_name), embedded[ind, :].cpu().detach().numpy())
 
-# if __name__ == "__main__":
-#     crema()
+if __name__ == "__main__":
+    train()

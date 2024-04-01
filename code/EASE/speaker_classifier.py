@@ -9,7 +9,9 @@ import random
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from torch.autograd import Function
-from rootpath import DATASET_PATH
+from rootpath import DATASET_PATH, CODE_DIR
+FILEDIR = os.path.join(CODE_DIR, "EASE")
+EMBEDDINGDIR = os.path.join(FILEDIR, "EASE_embeddings")
 
 torch.set_printoptions(profile="full")
 #Logger set
@@ -204,7 +206,7 @@ def get_embedding():
     model = torch.load('EASE.pth', map_location=device)
     model.to(device)
     model.eval()
-    os.makedirs("EASE_embeddings", exist_ok=True)
+    os.makedirs(EMBEDDINGDIR, exist_ok=True)
     with torch.no_grad():
         for data in tqdm(train_loader):
             speaker_feat = data[0].to(device)
@@ -212,7 +214,7 @@ def get_embedding():
             _, _, embedded = model(speaker_feat)
             for ind in range(len(names)):
                 target_file_name = names[ind].replace("wav", "npy")
-                np.save(os.path.join("EASE_embeddings", target_file_name), embedded[ind, :].cpu().detach().numpy())
+                np.save(os.path.join(EMBEDDINGDIR, target_file_name), embedded[ind, :].cpu().detach().numpy())
 
         for data in tqdm(val_loader):
             speaker_feat = data[0].to(device)
@@ -220,7 +222,7 @@ def get_embedding():
             _, _, embedded = model(speaker_feat)
             for ind in range(len(names)):
                 target_file_name = names[ind].replace("wav", "npy")
-                np.save(os.path.join("EASE_embeddings", target_file_name), embedded[ind, :].cpu().detach().numpy())
+                np.save(os.path.join(EMBEDDINGDIR, target_file_name), embedded[ind, :].cpu().detach().numpy())
 
         for data in tqdm(test_loader):
             speaker_feat = data[0].to(device)
@@ -228,7 +230,7 @@ def get_embedding():
             _, _, embedded = model(speaker_feat)
             for ind in range(len(names)):
                 target_file_name = names[ind].replace("wav", "npy")
-                np.save(os.path.join("EASE_embeddings", target_file_name), embedded[ind, :].cpu().detach().numpy())
+                np.save(os.path.join(EMBEDDINGDIR, target_file_name), embedded[ind, :].cpu().detach().numpy())
 
 if __name__ == "__main__":
     train()

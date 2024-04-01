@@ -176,8 +176,10 @@ def train(rank, local_rank, a, h):
             y_ds_hat_r, y_ds_hat_g, fmap_s_r, fmap_s_g = msd(y, y_g_hat)
             loss_fm_f = feature_loss(fmap_f_r, fmap_f_g)
             loss_fm_s = feature_loss(fmap_s_r, fmap_s_g)
-            loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)
-            loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
+            loss_gen_f, _ = generator_loss(y_df_hat_g)
+            # loss_gen_f, losses_gen_f = generator_loss(y_df_hat_g)
+            loss_gen_s, _ = generator_loss(y_ds_hat_g)
+            # loss_gen_s, losses_gen_s = generator_loss(y_ds_hat_g)
             loss_gen_all = loss_gen_s + loss_gen_f + loss_fm_s + loss_fm_f + loss_mel
             if h.get('f0_vq_params', None):
                 loss_gen_all += f0_commit_loss * h.get('lambda_commit', None)

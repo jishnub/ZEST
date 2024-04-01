@@ -205,7 +205,7 @@ def inference(item_index):
                 print(i, filename)
                 emo_embed = np.load(f"{CODE_DIR}/F0_predictor/wav2vec_feats/" + filename.replace(".wav", ".npy"))
                 # feats = {}
-                f0 = np.load(f"{CODE_DIR}/F0_predictor/pred_DSDT_f0" + fname_out_name + filename.replace(".wav", ".npy"))
+                f0 = np.load(os.path.join(f"{CODE_DIR}/F0_predictor/pred_DSDT_f0", fname_out_name + filename.replace(".wav", ".npy")))
                 f0 = f0.astype(np.float32)
                 # trg_f0 = f0
                 new_f0 = torch.tensor(f0)
@@ -227,7 +227,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--code_file', default=None)
-    parser.add_argument('--input_code_file', default=f"{CODE_DIR}/test_esd.txt")
+    parser.add_argument('--input_code_file', default=f"{CODE_DIR}/test_esd_trimmed.txt")
     parser.add_argument('--output_dir', default='DSDT')
     parser.add_argument('--emo_folder', default='')
     parser.add_argument('--pitch_folder', default='')
