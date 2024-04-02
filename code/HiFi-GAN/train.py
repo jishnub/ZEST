@@ -214,6 +214,8 @@ def train(rank, local_rank, a, h):
 
                 # Tensorboard summary logging
                 if steps % a.summary_interval == 0:
+                    with torch.no_grad():
+                        mel_error = F.l1_loss(y_mel, y_g_hat_mel).item()
                     sw.add_scalar("training/gen_loss_total", loss_gen_all, steps)
                     sw.add_scalar("training/mel_spec_error", mel_error, steps)
                     if h.get('f0_vq_params', None):
@@ -296,12 +298,12 @@ def main():
     parser.add_argument('--pitch_folder', default='')
     parser.add_argument('--emo_folder', default='')
     parser.add_argument('--config', default='')
-    parser.add_argument('--training_epochs', default=200, type=int)
-    parser.add_argument('--training_steps', default=150000, type=int)
-    parser.add_argument('--stdout_interval', default=1000, type=int)
-    parser.add_argument('--checkpoint_interval', default=10000, type=int)
+    parser.add_argument('--training_epochs', default=600, type=int)
+    parser.add_argument('--training_steps', default=150_000, type=int)
+    parser.add_argument('--stdout_interval', default=1_000, type=int)
+    parser.add_argument('--checkpoint_interval', default=5_000, type=int)
     parser.add_argument('--summary_interval', default=100, type=int)
-    parser.add_argument('--validation_interval', default=10000000000, type=int)
+    parser.add_argument('--validation_interval', default=10_000_000_000, type=int)
     parser.add_argument('--fine_tuning', default=False, type=bool)
     parser.add_argument('--local_rank', default=0, type=int)
     parser.add_argument('--distributed-world-size', type=int)

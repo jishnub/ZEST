@@ -126,7 +126,7 @@ def init_worker(queue, arguments):
 
         dataset = [(parse_code(x[1]), None, x[0], None) for x in dataset]
     else:
-        file_list = parse_manifest(a.input_code_file)
+        file_list = parse_manifest(a.input_code_file, True)
         dataset = CodeDataset(file_list, -1, h.code_hop_size, h.n_fft, h.num_mels, h.hop_size, h.win_size,
                               h.sampling_rate, h.fmin, h.fmax, n_cache_reuse=0,
                               fmax_loss=h.fmax_for_loss, device=device,
