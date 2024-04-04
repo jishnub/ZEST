@@ -9,9 +9,11 @@ import random
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from torch.autograd import Function
-from rootpath import DATASET_PATH, CODE_DIR
-FILEDIR = os.path.join(CODE_DIR, "EASE")
+from pathlib import Path
+FILEDIR = os.path.dirname(os.path.realpath(__file__))
 EMBEDDINGDIR = os.path.join(FILEDIR, "EASE_embeddings")
+home = str(Path.home())
+DATASET_PATH = f"{home}/Emotional_Speech_Dataset"
 
 torch.set_printoptions(profile="full")
 #Logger set

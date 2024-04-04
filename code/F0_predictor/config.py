@@ -1,4 +1,8 @@
-from rootpath import CODE_DIR, DATASET_PATH
+from pathlib import Path
+import os
+home = str(Path.home())
+DATASET_PATH = f"{home}/Emotional_Speech_Dataset"
+CODE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 train_datasets = {"ESD":f"{DATASET_PATH}/train"}
 val_datasets = {"ESD":f"{DATASET_PATH}/val"}

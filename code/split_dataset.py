@@ -44,7 +44,8 @@ def copyfiles(dataset, nfiles_per_speaker=10_000):
         for f in speaker_filenames:
             src = os.path.join(speakerdir, details[f], f'{f}.wav')
             dst = os.path.join(dstdir, f'{f}.wav')
-            shutil.copyfile(src, dst)
+            if not os.path.isfile(dst):
+                shutil.copyfile(src, dst)
 
 def trim_esd_file(dataset, nfiles_per_speaker=10_000):
     dstdir = os.path.join(DATASET_PATH, dataset)

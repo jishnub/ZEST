@@ -3,7 +3,9 @@ import os
 import torchaudio
 import numpy as np
 from tqdm import tqdm
-from rootpath import DATASET_PATH
+from pathlib import Path
+home = str(Path.home())
+DATASET_PATH = f"{home}/Emotional_Speech_Dataset"
 
 # classifier = EncoderClassifier.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb")
 classifier = EncoderClassifier.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb", run_opts={"device":"cuda"})
@@ -24,4 +26,4 @@ def getembeddings(folder):
 if __name__ == '__main__':
     getembeddings("train")
     getembeddings("val")
-    # getembeddings("test")
+    getembeddings("test")

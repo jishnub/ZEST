@@ -20,11 +20,10 @@ import pickle
 import ast
 # import math
 from torch.autograd import Function
-from rootpath import CODE_DIR, DATASET_PATH
+from config import CODE_DIR, DATASET_PATH
 FILEDIR = os.path.join(CODE_DIR, "F0_predictor")
 CHECKPOINTDIR = os.path.join(FILEDIR, "checkpoints")
-if not os.path.isdir(CHECKPOINTDIR):
-    os.makedirs(CHECKPOINTDIR)
+os.makedirs(CHECKPOINTDIR, exist_ok = True)
 
 torch.set_printoptions(profile="full")
 #Logger set

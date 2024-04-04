@@ -298,7 +298,7 @@ def main():
     parser.add_argument('--pitch_folder', default='')
     parser.add_argument('--emo_folder', default='')
     parser.add_argument('--config', default='')
-    parser.add_argument('--training_epochs', default=600, type=int)
+    parser.add_argument('--training_epochs', default=1_200, type=int)
     parser.add_argument('--training_steps', default=150_000, type=int)
     parser.add_argument('--stdout_interval', default=1_000, type=int)
     parser.add_argument('--checkpoint_interval', default=5_000, type=int)
