@@ -10,10 +10,11 @@ from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from torch.autograd import Function
 from pathlib import Path
-FILEDIR = os.path.dirname(os.path.realpath(__file__))
-EMBEDDINGDIR = os.path.join(FILEDIR, "EASE_embeddings")
-home = str(Path.home())
-DATASET_PATH = f"{home}/Emotional_Speech_Dataset"
+
+home = Path.home()
+OUTDIR = home/"ZEST_data"
+EMBEDDINGDIR = OUTDIR/"EASE_embeddings"
+DATASET_PATH = home/"Emotional_Speech_Dataset"
 
 torch.set_printoptions(profile="full")
 #Logger set
@@ -115,14 +116,15 @@ class SpeakerModel(nn.Module):
 
         return out, emo_out, feat
 
-def create_dataset(mode, bs=32):
-    speaker_folder = f"{DATASET_PATH}/x_vectors"
-    if mode == 'train':
-        folder = f"{DATASET_PATH}/train"
-    elif mode == 'val':
-        folder = f"{DATASET_PATH}/val"
-    elif mode =="test":
-        folder = f"{DATASET_PATH}/test"
+def create_dataset(mode, bs=32, dataset_path = DATASET_PATH):
+    speaker_folder = OUTDIR/"x_vectors"
+    folder = dataset_path/mode
+    # if mode == 'train':
+    #     folder = f"{DATASET_PATH}/train"
+    # elif mode == 'val':
+    #     folder = f"{DATASET_PATH}/val"
+    # elif mode =="test":
+    #     folder = f"{DATASET_PATH}/test"
     dataset = MyDataset(folder, speaker_folder)
     loader = DataLoader(dataset,
                     batch_size=bs,
@@ -201,38 +203,29 @@ def train():
                     Validation Loss {val_loss_log},\
                     Validation Accuracy {val_f1}")
 
-def get_embedding():
-    train_loader = create_dataset("train", 1)
-    val_loader = create_dataset("val", 1)
-    test_loader = create_dataset("test", 1)
+
+def compute_and_save_embedding(loader, model):
+    for data in tqdm(loader):
+            speaker_feat = data[0].to(device)
+            names = data[3]
+            _, _, embedded = model(speaker_feat)
+            for ind in range(len(names)):
+                target_file_name = Path(names[ind]).with_suffix(".npy")
+                np.save(EMBEDDINGDIR/target_file_name, embedded[ind, :].cpu().detach().numpy())
+
+
+def get_embedding(datasets = ["train", "val", "test"]):
+    loaders = [create_dataset(label, 1) for label in datasets]
+    # train_loader = create_dataset("train", 1)
+    # val_loader = create_dataset("val", 1)
+    # test_loader = create_dataset("test", 1)
     model = torch.load('EASE.pth', map_location=device)
     model.to(device)
     model.eval()
     os.makedirs(EMBEDDINGDIR, exist_ok=True)
     with torch.no_grad():
-        for data in tqdm(train_loader):
-            speaker_feat = data[0].to(device)
-            names = data[3]
-            _, _, embedded = model(speaker_feat)
-            for ind in range(len(names)):
-                target_file_name = names[ind].replace("wav", "npy")
-                np.save(os.path.join(EMBEDDINGDIR, target_file_name), embedded[ind, :].cpu().detach().numpy())
-
-        for data in tqdm(val_loader):
-            speaker_feat = data[0].to(device)
-            names = data[3]
-            _, _, embedded = model(speaker_feat)
-            for ind in range(len(names)):
-                target_file_name = names[ind].replace("wav", "npy")
-                np.save(os.path.join(EMBEDDINGDIR, target_file_name), embedded[ind, :].cpu().detach().numpy())
-
-        for data in tqdm(test_loader):
-            speaker_feat = data[0].to(device)
-            names = data[3]
-            _, _, embedded = model(speaker_feat)
-            for ind in range(len(names)):
-                target_file_name = names[ind].replace("wav", "npy")
-                np.save(os.path.join(EMBEDDINGDIR, target_file_name), embedded[ind, :].cpu().detach().numpy())
+        for loader in loaders:
+            compute_and_save_embedding(loader, model)
 
 if __name__ == "__main__":
     train()

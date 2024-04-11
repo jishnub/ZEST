@@ -30,9 +30,13 @@ from models import CodeGenerator
 # import amfm_decompy.basic_tools as basic
 # import amfm_decompy.pYAAPT as pYAAPT
 # from librosa.util import normalize
-CODE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-home = str(Path.home())
-DATADIR = f"{home}/Emotional_Speech_Dataset"
+CODE_DIR = Path(os.path.realpath(__file__)).parents[1]
+home = Path.home()
+DATADIR = home/"Emotional_Speech_Dataset"
+OUTDIR = home/"ZEST_data"
+pred_DSDT_f0_folder = OUTDIR/"pred_DSDT_f0"
+wav2vec_feats_folder = OUTDIR/"wav2vec_feats"
+REFERENCEDIR = DATADIR/"test"
 
 h = None
 device = None
@@ -187,8 +191,7 @@ def inference(item_index):
             new_code['f0'] = code['f0']
 
         if h.get('multispkr', None) and a.convert:
-            print("In conversion")
-            reference_files = os.listdir(os.path.join(DATADIR, "test"))
+            reference_files = os.listdir(REFERENCEDIR)
             #Change line 194 for setting same/different source/reference speaker
             reference_files = [x for x in reference_files if x[:4] != fname_out_name[:4]]
             reference_files = [x for x in reference_files if int(x[5:11]) >= 350]
@@ -198,10 +201,10 @@ def inference(item_index):
             reference_files = [x for x in reference_files if (int(x[5:11])-source_num)%350!=0]
 
             for i, filename in enumerate(reference_files):
-                # print(i, filename)
-                emo_embed = np.load(f"{CODE_DIR}/F0_predictor/wav2vec_feats/" + filename.replace(".wav", ".npy"))
+                filename_npy = Path(filename).with_suffix(".npy")
+                emo_embed = np.load(wav2vec_feats_folder/filename_npy)
                 # feats = {}
-                f0 = np.load(os.path.join(f"{CODE_DIR}/F0_predictor/pred_DSDT_f0", fname_out_name + filename.replace(".wav", ".npy")))
+                f0 = np.load(pred_DSDT_f0_folder/f"{fname_out_name}{filename_npy}")
                 f0 = f0.astype(np.float32)
                 # trg_f0 = f0
                 new_f0 = torch.tensor(f0)
@@ -214,7 +217,7 @@ def inference(item_index):
                 # audio, rtf = generate(h, generator, code)
                 audio, _ = generate(h, generator, code)
 
-                output_file = os.path.join(a.output_dir, fname_out_name + filename)
+                output_file = Path(a.output_dir)/f"{fname_out_name}{filename}"
                 audio = librosa.util.normalize(audio.astype(np.float32))
                 write(output_file, h.sampling_rate, audio)
 
@@ -224,7 +227,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--code_file', default=None)
     parser.add_argument('--input_code_file', default=f"{CODE_DIR}/test_esd_trimmed.txt")
-    parser.add_argument('--output_dir', default='DSDT')
+    parser.add_argument('--output_dir', default=OUTDIR/'DSDT')
     parser.add_argument('--emo_folder', default='')
     parser.add_argument('--pitch_folder', default='')
     parser.add_argument('--checkpoint_file', required=True)
@@ -294,7 +297,7 @@ def main():
             idQueue.put(i)
         init_worker(idQueue, a)
 
-        for i in range(0, len(dataset)):
+        for i in range(len(dataset)):
             inference(i)
             bar = progbar(i, len(dataset))
             message = f'{bar} {i}/{len(dataset)} '
@@ -311,7 +314,7 @@ def main():
                 stream(message)
                 if a.n != -1 and i > a.n:
                     break
-
+    print() # newline
 
 if __name__ == '__main__':
     main()

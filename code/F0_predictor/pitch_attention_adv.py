@@ -14,15 +14,17 @@ from sklearn.metrics import f1_score
 from tqdm import tqdm
 # import random
 import torch.nn.functional as F
-from config import hparams
+from config import hparams, f0_predictor_path, OUTDIR
 from config import train_tokens_orig, val_tokens_orig, test_tokens_orig, f0_file
 import pickle
 import ast
 # import math
 from torch.autograd import Function
 from config import CODE_DIR, DATASET_PATH
-FILEDIR = os.path.join(CODE_DIR, "F0_predictor")
-CHECKPOINTDIR = os.path.join(FILEDIR, "checkpoints")
+from pathlib import Path
+
+FILEDIR = CODE_DIR/"F0_predictor"
+CHECKPOINTDIR = FILEDIR/"checkpoints"
 os.makedirs(CHECKPOINTDIR, exist_ok = True)
 
 torch.set_printoptions(profile="full")
@@ -47,10 +49,11 @@ torch.cuda.empty_cache()
 
 class MyDataset(Dataset):
 
-    def __init__(self, folder, token_file):
+    def __init__(self, folder, token_file, wav_files = None):
         self.folder = folder
-        wav_files = os.listdir(folder)
-        wav_files = [x for x in wav_files if ".wav" in x]
+        if wav_files is None:
+            wav_files = os.listdir(folder)
+        wav_files = [x for x in wav_files if Path(x).suffix == ".wav"]
         self.wav_files = wav_files
         self.sr = 16000
         self.tokens = {}
@@ -85,8 +88,7 @@ class MyDataset(Dataset):
         speaker_dict = {}
         for ind in range(11, 21):
             speaker_dict["00"+str(ind)] = ind-11
-        speaker_feature = np.load(os.path.join(f"{CODE_DIR}/EASE/EASE_embeddings",
-                                               file_name.replace(".wav", ".npy")))
+        speaker_feature = np.load(OUTDIR/"EASE_embeddings"/Path(file_name).with_suffix(".npy"))
 
         return speaker_feature, speaker_dict[spkr_name]
 
@@ -185,6 +187,9 @@ class CrossAttentionModel(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, query_i, key_i, value_i):
+        # if self.training:  # This masks part of the sequence to avoid overfit and encourage disentanglement
+        #     mask = torch.cuda.FloatTensor(query_i.shape[0], query_i.shape[1]).uniform_() > 0.6
+        #     query_i[mask] = 0
         query = self.fc_q(query_i)
         key = self.fc_k(key_i)
         value = self.fc_v(value_i)
@@ -207,7 +212,7 @@ class PitchModel(nn.Module):
         super(PitchModel, self).__init__()
         self.processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-robust-ft-swbd-300h")
         self.wav2vec = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-robust-ft-swbd-300h", output_hidden_states=True)
-        self.encoder = WAV2VECModel(self.wav2vec, 5, hparams["emotion_embedding_dim"])
+        self.encoder = WAV2VECModel(self.wav2vec, hparams["output_classes"], hparams["emotion_embedding_dim"])
         self.embedding = nn.Embedding(101, 128, padding_idx=100)
         self.fusion = CrossAttentionModel(128, 128)
         self.linear_layer = nn.Linear(128, 1)
@@ -267,17 +272,22 @@ def custom_collate(data):
     new_data["speaker"] = np.array(new_data["speaker"])
     return new_data
 
-def create_dataset(mode, bs=24):
+def create_dataset(mode, bs=24, dataset_path = DATASET_PATH, wav_files = None):
     if mode == 'train':
-        folder = f"{DATASET_PATH}/train"
+        folder = dataset_path/mode
         token_file = train_tokens_orig["ESD"]
     elif mode == 'val':
-        folder = f"{DATASET_PATH}/val"
+        folder = dataset_path/mode
         token_file = val_tokens_orig["ESD"]
-    else:
-        folder = f"{DATASET_PATH}/test"
+    elif mode == 'test':
+        folder = dataset_path/mode
         token_file = test_tokens_orig["ESD"]
-    dataset = MyDataset(folder, token_file)
+    elif mode == 'unseen':
+        folder = dataset_path
+        token_file = test_tokens_orig["unseen"]
+    else:
+        raise Exception(f"unrecognized mode {mode}")
+    dataset = MyDataset(folder, token_file, wav_files)
     loader = DataLoader(dataset,
                     batch_size=bs,
                     pin_memory=False,
@@ -389,7 +399,7 @@ def train(num_epochs=500, bs=8, restart=True):
                 labels = list(labels)
                 gt_val.extend(labels)
         if val_loss < final_val_loss:
-            torch.save(model.state_dict(), os.path.join(FILEDIR, 'f0_predictor.pth'))
+            torch.save(model.state_dict(), f0_predictor_path)
             final_val_loss = val_loss
         train_loss = tot_loss/tot_train_samples
         train_f1 = f1_score(gt_tr, pred_tr, average='weighted')

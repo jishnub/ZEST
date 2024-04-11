@@ -20,7 +20,8 @@ from librosa.util import normalize
 import os
 import pickle
 
-CODE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+HOMEDIR = Path.home()
+OUTDIR = HOMEDIR/"ZEST_data"
 
 MAX_WAV_VALUE = 32768.0
 
@@ -104,14 +105,12 @@ def spectral_de_normalize_torch(magnitudes):
 mel_basis = {}
 hann_window = {}
 
-
-def parse_manifest(manifest, filterfiles=False):
+src_wav_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034", "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
+def parse_manifest(manifest, filterfiles=False, src_wav_files = src_wav_files):
     audio_files = []
     codes = []
-    reqd_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034", "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
-    #for f in reqd_files[1:]:
-    with open(manifest) as info:
 
+    with open(manifest) as info:
         for line in info.readlines():
             # if f not in line:
             #     continue
@@ -125,15 +124,13 @@ def parse_manifest(manifest, filterfiles=False):
                     k = 'hubert'
 
                 filename = Path(sample["audio"])
-                code = torch.LongTensor(
-                    [int(x) for x in sample[k].split(' ')]
-                ).numpy()
-                if (not filterfiles) or (filterfiles and filename.stem in reqd_files):
+                code = torch.LongTensor([int(x) for x in sample[k].split(' ')]).numpy()
+                if (not filterfiles) or (filterfiles and filename.stem in src_wav_files):
                     codes.append(code)
                     audio_files.append(filename)
             else:
                 filename = Path(line.strip())
-                if (not filterfiles) or (filterfiles and filename.stem in reqd_files):
+                if (not filterfiles) or (filterfiles and filename.stem in src_wav_files):
                     audio_files.append(filename)
 
     return audio_files, codes
@@ -294,7 +291,7 @@ class CodeDataset(torch.utils.data.Dataset):
             f0 = torch.tensor(pitch).unsqueeze(0).unsqueeze(0)
             feats['f0'] = f0.squeeze(0)
         if self.multispkr:
-            feats['spkr'] = np.load(f"{CODE_DIR}/EASE/EASE_embeddings/" + emo_file_name)
+            feats['spkr'] = np.load(OUTDIR/"EASE_embeddings"/emo_file_name)
 
         if self.spkr_average:
             with open('speakers.pkl', 'rb') as handle:

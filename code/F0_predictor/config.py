@@ -1,17 +1,21 @@
 from pathlib import Path
 import os
-home = str(Path.home())
-DATASET_PATH = f"{home}/Emotional_Speech_Dataset"
-CODE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+HOMEDIR = Path.home()
+DATASET_PATH = HOMEDIR/"Emotional_Speech_Dataset"
+OUTDIR = HOMEDIR/"ZEST_data"
+CODE_DIR = Path(os.path.realpath(__file__)).parents[1]
+UNSEENAUDIODIR = HOMEDIR/"unseenaudio"
 
-train_datasets = {"ESD":f"{DATASET_PATH}/train"}
-val_datasets = {"ESD":f"{DATASET_PATH}/val"}
-test_datasets = {"ESD":f"{DATASET_PATH}/test"}
+# train_datasets = {"ESD": DATASET_PATH/"train"}
+# val_datasets = {"ESD": DATASET_PATH/"val"}
+# test_datasets = {"ESD": DATASET_PATH/"test", "unseen": UNSEENAUDIODIR}
 
 
-train_tokens_orig = {"ESD":f"{CODE_DIR}/train_esd_trimmed.txt"}
-val_tokens_orig = {"ESD":f"{CODE_DIR}/val_esd_trimmed.txt"}
-test_tokens_orig = {"ESD":f"{CODE_DIR}/test_esd_trimmed.txt"}
+train_tokens_orig = {"ESD": CODE_DIR/"train_esd_trimmed.txt"}
+val_tokens_orig = {"ESD": CODE_DIR/"val_esd_trimmed.txt"}
+test_tokens_orig = {"ESD": CODE_DIR/"test_esd_trimmed.txt", "unseen": UNSEENAUDIODIR/"tokens.txt"}
+
+f0_predictor_path = OUTDIR/'f0_predictor.pth'
 
 f0_file = f"{CODE_DIR}/f0.pickle"
 hparams = {
