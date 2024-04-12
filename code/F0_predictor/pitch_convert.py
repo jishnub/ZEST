@@ -1,22 +1,10 @@
 import os
-import torch
-# import torchaudio
-# from einops.layers.torch import Rearrange
-# from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
+import torch # type: ignore
 import logging
 import numpy as np
-# import json
-# from torch.utils.data import DataLoader, Dataset
-# from torch.optim import Adam
-# import torch.nn as nn
 import random
-# from sklearn.metrics import f1_score
 from tqdm import tqdm
-# import random
-# import torch.nn.functional as F
 from config import hparams, f0_predictor_path, OUTDIR, DATASET_PATH
-# import pickle
-# import ast
 from pitch_attention_adv import create_dataset, PitchModel
 from pathlib import Path
 
@@ -43,22 +31,49 @@ torch.backends.cudnn.deterministic = True
 torch.cuda.empty_cache()
 
 # smaller list for testing
-sources = ["0011_000021.wav", "0012_000022.wav"]
+sources = ["0011_000021.wav"]
 # sources = ["0011_000021.wav", "0012_000022.wav", "0013_000025.wav",
 #            "0014_000032.wav", "0015_000034.wav", "0016_000035.wav",
 #            "0017_000038.wav", "0018_000043.wav", "0019_000023.wav",
 #            "0020_000047.wav"]
 
+def custom_collate(data):
+    # batch_len = len(data)
+    new_data = {"audio":[], "mask":[], "labels":[], "hubert":[], "speaker":[], "names":[]}
+    max_len_hubert, max_len_aud = 0, 0
+    for ind in range(len(data)):
+        max_len_aud = max(data[ind][0].shape[-1], max_len_aud)
+        max_len_hubert = max(data[ind][2].shape[-1], max_len_hubert)
+    for i in range(len(data)):
+        final_sig = np.concatenate((data[i][0], np.zeros((max_len_aud-data[i][0].shape[-1]))), -1)
+        mask = data[i][2].shape[-1]
+        hubert_feat = np.concatenate((data[i][2], 100*np.ones((max_len_hubert-data[i][2].shape[-1]))), -1)
+        labels = data[i][3]
+        speaker_feat = data[i][4]
+        names = data[i][6]
+        new_data["audio"].append(final_sig)
+        new_data["mask"].append(torch.tensor(mask))
+        new_data["hubert"].append(hubert_feat)
+        new_data["labels"].append(torch.tensor(labels))
+        new_data["speaker"].append(speaker_feat)
+        new_data["names"].append(names)
+    new_data["audio"] = np.array(new_data["audio"])
+    new_data["mask"] = np.array(new_data["mask"])
+    new_data["hubert"] = np.array(new_data["hubert"])
+    new_data["labels"] = np.array(new_data["labels"])
+    new_data["speaker"] = np.array(new_data["speaker"])
+    return new_data
+
 def get_f0(sources = sources, dataset = "test",
             dataset_path = DATASET_PATH, pred_DSDT_f0_folder = pred_DSDT_f0_folder):
 
     os.makedirs(pred_DSDT_f0_folder, exist_ok=True)
-    target_loader = create_dataset(dataset, 1, dataset_path)
     model = PitchModel(hparams)
     model.load_state_dict(torch.load(f0_predictor_path, map_location=device))
     model.to(device)
     model.eval()
-    source_loader = create_dataset(dataset, 1, dataset_path, sources)
+    target_loader = create_dataset(dataset, 1, dataset_path, collate_fn=custom_collate)
+    source_loader = create_dataset(dataset, 1, dataset_path, sources, collate_fn=custom_collate)
 
     with torch.no_grad():
         for source in tqdm(sources):

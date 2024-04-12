@@ -1,5 +1,5 @@
 import os
-import torch
+import torch # type: ignore
 # import torchaudio
 # from einops.layers.torch import Rearrange
 # from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
@@ -42,16 +42,41 @@ torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 torch.cuda.empty_cache()
 
+def collatefn_f0_inference(data):
+    new_data = {"audio":[], "mask":[], "hubert":[], "speaker":[], "names":[]}
+    max_len_hubert, max_len_aud = 0, 0
+    for ind in range(len(data)):
+        max_len_aud = max(data[ind][0].shape[-1], max_len_aud)
+        max_len_hubert = max(data[ind][2].shape[-1], max_len_hubert)
+    for i in range(len(data)):
+        final_sig = np.concatenate((data[i][0], np.zeros((max_len_aud-data[i][0].shape[-1]))), -1)
+        mask = data[i][2].shape[-1]
+        hubert_feat = np.concatenate((data[i][2], 100*np.ones((max_len_hubert-data[i][2].shape[-1]))), -1)
+        speaker_feat = data[i][4]
+        names = data[i][6]
+
+        new_data["speaker"].append(speaker_feat)
+        new_data["audio"].append(final_sig)
+        new_data["mask"].append(torch.tensor(mask))
+        new_data["hubert"].append(hubert_feat)
+        new_data["names"].append(names)
+
+    new_data["speaker"] = np.array(new_data["speaker"])
+    new_data["audio"] = np.array(new_data["audio"])
+    new_data["mask"] = np.array(new_data["mask"])
+    new_data["hubert"] = np.array(new_data["hubert"])
+    return new_data
+
 def predict_pitch_contours(loader, model):
     for data in tqdm(loader):
-            inputs, mask ,tokens = torch.tensor(data["audio"]).to(device), \
-                                                   torch.tensor(data["mask"]).to(device),\
-                                                   torch.tensor(data["hubert"]).to(device)
+            names = data["names"]
+            speaker, inputs, mask, tokens = torch.tensor(data["speaker"]).to(device),\
+                                    torch.tensor(data["audio"]).to(device),\
+                                    torch.tensor(data["mask"]).to(device),\
+                                    torch.tensor(data["hubert"]).to(device)
 
-            speaker = torch.tensor(data["speaker"]).to(device)
             pitch_pred, _, _, _ = model(inputs, tokens, speaker, mask)
             pitch_pred = torch.exp(pitch_pred) - 1
-            names = data["names"]
             for ind,filename in enumerate(names):
                 target_file_name = Path(filename).with_suffix(".npy").name
                 np.save(CONTOURDIR/target_file_name, pitch_pred[ind, :].cpu().detach().numpy())
@@ -63,7 +88,9 @@ def get_f0(datasets = ["test", "train", "val"], dataset_path = DATASET_PATH):
     model.load_state_dict(torch.load(f0_predictor_path, map_location=device))
     model.to(device)
     model.eval()
-    loaders = [create_dataset(label, 1, dataset_path) for label in datasets]
+    loaders = [create_dataset(label, bs=1,
+                    dataset_path=dataset_path,
+                    collate_fn=collatefn_f0_inference) for label in datasets]
     with torch.no_grad():
         for loader in loaders:
             predict_pitch_contours(loader, model)

@@ -1,30 +1,27 @@
 import os
-import torch
-import torchaudio
-# from einops.layers.torch import Rearrange
-from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
+import torch # type: ignore
+import torchaudio # type: ignore
+from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC # type: ignore
 import logging
 import numpy as np
-# import json
-from torch.utils.data import DataLoader, Dataset
-from torch.optim import Adam
-import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset # type: ignore
+from torch.optim import Adam # type: ignore
+import torch.nn as nn # type: ignore
 import random
 from sklearn.metrics import f1_score
 from tqdm import tqdm
-# import random
-import torch.nn.functional as F
+import torch.nn.functional as F # type: ignore
 from config import hparams, f0_predictor_path, OUTDIR
 from config import train_tokens_orig, val_tokens_orig, test_tokens_orig, f0_file
 import pickle
 import ast
-# import math
-from torch.autograd import Function
+from torch.autograd import Function # type: ignore
 from config import CODE_DIR, DATASET_PATH
 from pathlib import Path
 
 FILEDIR = CODE_DIR/"F0_predictor"
 CHECKPOINTDIR = FILEDIR/"checkpoints"
+EASE_EMBEDDINGS_DIR = OUTDIR/"EASE_embeddings"
 os.makedirs(CHECKPOINTDIR, exist_ok = True)
 
 torch.set_printoptions(profile="full")
@@ -49,7 +46,7 @@ torch.cuda.empty_cache()
 
 class MyDataset(Dataset):
 
-    def __init__(self, folder, token_file, wav_files = None):
+    def __init__(self, folder, token_file, wav_files = None, load_f0_feat = False):
         self.folder = folder
         if wav_files is None:
             wav_files = os.listdir(folder)
@@ -57,8 +54,11 @@ class MyDataset(Dataset):
         self.wav_files = wav_files
         self.sr = 16000
         self.tokens = {}
-        with open(f0_file, 'rb') as handle:
-            self.f0_feat = pickle.load(handle)
+        f0_feat = None
+        if load_f0_feat:
+            with open(f0_file, 'rb') as handle:
+                f0_feat = pickle.load(handle)
+        self.f0_feat = f0_feat
         with open(token_file) as f:
             lines = f.readlines()
             for line in lines:
@@ -72,25 +72,12 @@ class MyDataset(Dataset):
 
     def getemolabel(self, file_name):
         file_name = int(file_name[5:-4])
-        if file_name <=350:
-            return 0
-        elif file_name > 350 and file_name <=700:
-            return 1
-        elif file_name > 700 and file_name <= 1050:
-            return 2
-        elif file_name > 1050 and file_name <= 1400:
-            return 3
-        else:
-            return 4
+        return (file_name-1) // 350
 
     def getspkrlabel(self, file_name):
         spkr_name = file_name[:4]
-        speaker_dict = {}
-        for ind in range(11, 21):
-            speaker_dict["00"+str(ind)] = ind-11
-        speaker_feature = np.load(OUTDIR/"EASE_embeddings"/Path(file_name).with_suffix(".npy"))
-
-        return speaker_feature, speaker_dict[spkr_name]
+        speaker_feature = np.load(EASE_EMBEDDINGS_DIR/Path(file_name).with_suffix(".npy"))
+        return speaker_feature, int(spkr_name)-11
 
     def __getitem__(self, audio_ind):
         class_id = self.getemolabel(self.wav_files[audio_ind])
@@ -102,7 +89,10 @@ class MyDataset(Dataset):
         speaker_feat, speaker_label = self.getspkrlabel(self.wav_files[audio_ind])
 
         final_sig = sig
-        f0 = self.f0_feat[self.wav_files[audio_ind]]
+        if self.f0_feat is not None:
+            f0 = self.f0_feat[self.wav_files[audio_ind]]
+        else:
+            f0 = None
 
         return final_sig, f0, tokens, class_id, speaker_feat, speaker_label, self.wav_files[audio_ind]
 
@@ -250,7 +240,7 @@ def custom_collate(data):
         final_sig = np.concatenate((data[i][0], np.zeros((max_len_aud-data[i][0].shape[-1]))), -1)
         f0_feat = np.concatenate((data[i][1], np.zeros((max_len_f0-data[i][1].shape[-1]))), -1)
         mask = data[i][2].shape[-1]
-        hubert_feat = np.concatenate((data[i][2], 100*np.ones((max_len_f0-data[i][2].shape[-1]))), -1)
+        hubert_feat = np.concatenate((data[i][2], 100*np.ones((max_len_hubert-data[i][2].shape[-1]))), -1)
         labels = data[i][3]
         speaker_feat = data[i][4]
         speaker_label = data[i][5]
@@ -272,7 +262,9 @@ def custom_collate(data):
     new_data["speaker"] = np.array(new_data["speaker"])
     return new_data
 
-def create_dataset(mode, bs=24, dataset_path = DATASET_PATH, wav_files = None):
+def create_dataset(mode, bs=24, dataset_path = DATASET_PATH,
+                   wav_files = None, collate_fn = custom_collate,
+                   load_f0_feat = False):
     if mode == 'train':
         folder = dataset_path/mode
         token_file = train_tokens_orig["ESD"]
@@ -287,13 +279,13 @@ def create_dataset(mode, bs=24, dataset_path = DATASET_PATH, wav_files = None):
         token_file = test_tokens_orig["unseen"]
     else:
         raise Exception(f"unrecognized mode {mode}")
-    dataset = MyDataset(folder, token_file, wav_files)
+    dataset = MyDataset(folder, token_file, wav_files, load_f0_feat)
     loader = DataLoader(dataset,
                     batch_size=bs,
                     pin_memory=False,
                     shuffle=True,
                     drop_last=False,
-                    collate_fn=custom_collate)
+                    collate_fn=collate_fn)
     return loader
 
 def l2_loss(input, target):
@@ -305,8 +297,8 @@ def l2_loss(input, target):
 
 def train(num_epochs=500, bs=8, restart=True):
 
-    train_loader = create_dataset("train", bs)
-    val_loader = create_dataset("val", bs)
+    train_loader = create_dataset("train", bs, load_f0_feat=True)
+    val_loader = create_dataset("val", bs, load_f0_feat=True)
     model = PitchModel(hparams)
     unfreeze = [i for i in range(0, 24)]
     for name, param in model.named_parameters():

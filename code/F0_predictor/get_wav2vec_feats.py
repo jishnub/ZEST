@@ -1,23 +1,10 @@
 import os
 import torch
-# from einops.layers.torch import Rearrange
-# from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 import logging
 import numpy as np
-# from torch.utils.data import DataLoader, Dataset
-# from torch.optim import Adam
-# import torch.nn as nn
 import random
-# from sklearn.metrics import f1_score
 from tqdm import tqdm
-# import random
-# import torch.nn.functional as F
 from config import hparams, DATASET_PATH
-# from config import f0_file
-# import ast
-# import math
-# from torch.autograd import Function
-# from pitch_convert import crema_dataset
 from pitch_attention_adv import create_dataset, PitchModel
 from pathlib import Path
 from config import f0_predictor_path, OUTDIR
@@ -43,6 +30,33 @@ torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 torch.cuda.empty_cache()
 
+def custom_collate(data):
+    # batch_len = len(data)
+    new_data = {"audio":[], "mask":[], "hubert":[], "speaker":[], "names":[]}
+    max_len_hubert, max_len_aud = 0, 0
+    for ind in range(len(data)):
+        max_len_aud = max(data[ind][0].shape[-1], max_len_aud)
+        max_len_hubert = max(data[ind][2].shape[-1], max_len_hubert)
+    for i in range(len(data)):
+        final_sig = np.concatenate((data[i][0], np.zeros((max_len_aud-data[i][0].shape[-1]))), -1)
+        mask = data[i][2].shape[-1]
+        hubert_feat = np.concatenate((data[i][2], 100*np.ones((max_len_hubert-data[i][2].shape[-1]))), -1)
+        speaker_feat = data[i][4]
+        names = data[i][6]
+
+        new_data["speaker"].append(speaker_feat)
+        new_data["audio"].append(final_sig)
+        new_data["mask"].append(torch.tensor(mask))
+        new_data["hubert"].append(hubert_feat)
+        new_data["names"].append(names)
+
+    new_data["speaker"] = np.array(new_data["speaker"])
+    new_data["audio"] = np.array(new_data["audio"])
+    new_data["mask"] = np.array(new_data["mask"])
+    new_data["hubert"] = np.array(new_data["hubert"])
+
+    return new_data
+
 class HiddenEmoPitchModel(PitchModel):
     def forward(self, aud, tokens=None, speaker=None, lengths=None, alpha=1.0):
         inputs = self.processor(aud, sampling_rate=16000, return_tensors="pt")
@@ -52,12 +66,12 @@ class HiddenEmoPitchModel(PitchModel):
 
 def compute_wav2vec_feats(loader, model):
     for data in tqdm(loader):
-            inputs, mask ,tokens = torch.tensor(data["audio"]).to(device), \
-                                                   torch.tensor(data["mask"]).to(device),\
-                                                   torch.tensor(data["hubert"]).to(device)
-
-            speaker = torch.tensor(data["speaker"]).to(device)
             name = data["names"]
+            speaker, inputs, mask ,tokens = torch.tensor(data["speaker"]).to(device),\
+                                            torch.tensor(data["audio"]).to(device), \
+                                            torch.tensor(data["mask"]).to(device),\
+                                            torch.tensor(data["hubert"]).to(device)
+
             embedded = model(inputs, tokens, speaker, mask)
             for ind in range(len(name)):
                 target_file_name = Path(name[ind]).with_suffix(".npy")
@@ -65,7 +79,7 @@ def compute_wav2vec_feats(loader, model):
 
 def train(datasets = ["train", "test", "val"], dataset_path = DATASET_PATH):
     os.makedirs(wav2vec_feats_folder, exist_ok=True)
-    loaders = [create_dataset(label, 1, dataset_path) for label in datasets]
+    loaders = [create_dataset(label, 1, dataset_path, collate_fn=custom_collate) for label in datasets]
     model = HiddenEmoPitchModel(hparams)
     model.load_state_dict(torch.load(f0_predictor_path, map_location=device))
     model.to(device)

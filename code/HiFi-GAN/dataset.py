@@ -105,7 +105,9 @@ def spectral_de_normalize_torch(magnitudes):
 mel_basis = {}
 hann_window = {}
 
-src_wav_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034", "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
+# smaller list for testing
+src_wav_files = ["0011_000021"]
+# src_wav_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034", "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
 def parse_manifest(manifest, filterfiles=False, src_wav_files = src_wav_files):
     audio_files = []
     codes = []

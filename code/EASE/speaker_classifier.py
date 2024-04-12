@@ -10,11 +10,9 @@ from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from torch.autograd import Function
 from pathlib import Path
+from get_speaker_embedding import XVECTORS_FOLDER, DATASET_PATH, OUTDIR
 
-home = Path.home()
-OUTDIR = home/"ZEST_data"
 EMBEDDINGDIR = OUTDIR/"EASE_embeddings"
-DATASET_PATH = home/"Emotional_Speech_Dataset"
 
 torch.set_printoptions(profile="full")
 #Logger set
@@ -37,46 +35,39 @@ torch.backends.cudnn.deterministic = True
 torch.cuda.empty_cache()
 
 class MyDataset(Dataset):
-    def __init__(self, folder, speaker_folder):
-        self.folder = folder
-        self.speaker_folder = speaker_folder
-        wav_files = os.listdir(speaker_folder)
-        wav_files = [x for x in wav_files if ".npy" in x]
-        wav_files = [x.replace("_gen.wav", ".wav") for x in wav_files]
-        speaker_features = os.listdir(speaker_folder)
-        speaker_features = [x for x in speaker_features if ".npy" in x]
+    def __init__(self, wav_folder, xvector_folder, wav_files = None):
+        if wav_files is None:
+            wav_files = [x for x in os.listdir(wav_folder) if Path(x).suffix == ".wav"]
+
+        speaker_features = [Path(x).with_suffix(".npy") for x in wav_files
+                                if (Path(xvector_folder)/Path(x).with_suffix(".npy")).is_file()]
+
+        if not len(wav_files) == len(speaker_features):
+            raise Exception(f"number of wav files ({len(wav_files)}) doesn't match "+
+                            f"the number of x-vectors: ({len(speaker_features)})")
+
+        self.folder = Path(wav_folder)
+        self.speaker_folder = Path(xvector_folder)
         self.wav_files = wav_files
         self.speaker_features = speaker_features
         self.sr = 16000
-        self.speaker_dict = {}
-        for ind in range(11, 21):
-            self.speaker_dict["00"+str(ind)] = ind-11
 
     def __len__(self):
         return len(self.wav_files)
 
     def getspkrlabel(self, file_name):
-        spkr_name = file_name[-15:][:4]
-        spkr_label = self.speaker_dict[spkr_name]
+        spkr_name = file_name.split("_")[0]
+        spkr_label = int(spkr_name) - 11
 
         return spkr_label
 
     def getemolabel(self, file_name):
-        file_name = int(file_name[5:-4])
-        if file_name <=350:
-            return 0
-        elif file_name > 350 and file_name <=700:
-            return 1
-        elif file_name > 700 and file_name <= 1050:
-            return 2
-        elif file_name > 1050 and file_name <= 1400:
-            return 3
-        else:
-            return 4
+        file_name = int(Path(file_name).stem.split("_")[-1])
+        return (file_name-1) // 350
 
     def __getitem__(self, audio_ind):
-        speaker_feat = np.load(os.path.join(self.speaker_folder, self.wav_files[audio_ind].replace(".wav", ".npy")))
-        speaker_label = self.getspkrlabel(self.wav_files[audio_ind][-15:])
+        speaker_feat = np.load(self.speaker_folder/self.speaker_features[audio_ind])
+        speaker_label = self.getspkrlabel(self.wav_files[audio_ind])
         class_id = self.getemolabel(self.wav_files[audio_ind])
 
         return speaker_feat, speaker_label, class_id, self.wav_files[audio_ind]
@@ -117,15 +108,8 @@ class SpeakerModel(nn.Module):
         return out, emo_out, feat
 
 def create_dataset(mode, bs=32, dataset_path = DATASET_PATH):
-    speaker_folder = OUTDIR/"x_vectors"
-    folder = dataset_path/mode
-    # if mode == 'train':
-    #     folder = f"{DATASET_PATH}/train"
-    # elif mode == 'val':
-    #     folder = f"{DATASET_PATH}/val"
-    # elif mode =="test":
-    #     folder = f"{DATASET_PATH}/test"
-    dataset = MyDataset(folder, speaker_folder)
+    wav_folder = Path(dataset_path)/mode
+    dataset = MyDataset(wav_folder, XVECTORS_FOLDER)
     loader = DataLoader(dataset,
                     batch_size=bs,
                     pin_memory=False,
@@ -214,11 +198,8 @@ def compute_and_save_embedding(loader, model):
                 np.save(EMBEDDINGDIR/target_file_name, embedded[ind, :].cpu().detach().numpy())
 
 
-def get_embedding(datasets = ["train", "val", "test"]):
-    loaders = [create_dataset(label, 1) for label in datasets]
-    # train_loader = create_dataset("train", 1)
-    # val_loader = create_dataset("val", 1)
-    # test_loader = create_dataset("test", 1)
+def get_embedding(datasets = ["train", "val", "test"], dataset_path = DATASET_PATH):
+    loaders = [create_dataset(label, 1, dataset_path) for label in datasets]
     model = torch.load('EASE.pth', map_location=device)
     model.to(device)
     model.eval()
