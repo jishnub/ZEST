@@ -105,10 +105,7 @@ def spectral_de_normalize_torch(magnitudes):
 mel_basis = {}
 hann_window = {}
 
-# smaller list for testing
-src_wav_files = ["0011_000021"]
-# src_wav_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034", "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
-def parse_manifest(manifest, filterfiles=False, src_wav_files = src_wav_files):
+def parse_manifest(manifest, filterfiles=False, src_wav_files = None):
     audio_files = []
     codes = []
 
@@ -127,12 +124,12 @@ def parse_manifest(manifest, filterfiles=False, src_wav_files = src_wav_files):
 
                 filename = Path(sample["audio"])
                 code = torch.LongTensor([int(x) for x in sample[k].split(' ')]).numpy()
-                if (not filterfiles) or (filterfiles and filename.stem in src_wav_files):
+                if (not filterfiles) or (src_wav_files is None) or (filterfiles and filename.stem in src_wav_files):
                     codes.append(code)
                     audio_files.append(filename)
             else:
                 filename = Path(line.strip())
-                if (not filterfiles) or (filterfiles and filename.stem in src_wav_files):
+                if (not filterfiles) or (src_wav_files is None) or (filterfiles and filename.stem in src_wav_files):
                     audio_files.append(filename)
 
     return audio_files, codes

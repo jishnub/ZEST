@@ -78,7 +78,6 @@ def get_f0(sources = sources, dataset = "test",
     with torch.no_grad():
         for source in tqdm(sources):
             source_name = Path(source).stem
-            srcspeakerid = source[:5]
 
             for data in source_loader:
                 if not data["names"][0] == source:
@@ -88,20 +87,16 @@ def get_f0(sources = sources, dataset = "test",
                                                     torch.tensor(data["mask"]).to(device),\
                                                     torch.tensor(data["hubert"]).to(device)
 
-
             for data in target_loader:
                 names = data["names"]
-                inputs_t, labels_t = torch.tensor(data["audio"]).to(device),\
-                                        torch.tensor(data["labels"]).to(device)
+                inputs_t = torch.tensor(data["audio"]).to(device)
 
-                if ((not names[0].startswith(srcspeakerid)) and labels_t[0] > 0 and
-                        (int(names[0][5:11]) - int(source[5:11]))%350 != 0):
-
-                    pitch_pred, _, _, _ = model(inputs_t, tokens_s, speaker_s, mask_s)
-                    pitch_pred = torch.exp(pitch_pred) - 1
-                    final_name = source_name + names[0]
-                    final_name = Path(final_name).with_suffix(".npy")
-                    np.save(pred_DSDT_f0_folder/final_name, pitch_pred[0, :].cpu().detach().numpy())
+                pitch_pred, _, _, _ = model(inputs_t, tokens_s, speaker_s, mask_s)
+                pitch_pred = torch.exp(pitch_pred) - 1
+                final_name = source_name + names[0]
+                final_name = Path(final_name).with_suffix(".npy")
+                final_path = pred_DSDT_f0_folder/final_name
+                np.save(final_path, pitch_pred[0, :].cpu().detach().numpy())
 
 if __name__ == "__main__":
     get_f0()

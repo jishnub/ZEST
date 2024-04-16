@@ -16,7 +16,7 @@ set -e
 
 # Adjust the paths accordingly
 
-LAYER=6
+LAYER=9
 N_CLUSTERS=100
 TYPE="hubert"
 
@@ -26,13 +26,13 @@ CKPT_PATH=$HUBERTMODELDIR/hubert_base_ls960.pt # update this path
 # Download the pretrained quantized model from https://dl.fbaipublicfiles.com/textless_nlp/gslm/hubert/km100/km.bin
 KM_MODEL_PATH=$HUBERTMODELDIR/km.bin  # update this path
 
-ZESTDIR=$HOME/ZEST
-ZESTCODEDIR=$ZESTDIR/code
-MANIFEST_OUTPUT_DIR=$ZESTCODEDIR # update this path
+ZESTDIR=$HOME/code # update this to the directory with the venv
+ZESTCODEDIR=$ZESTDIR/code # update this to the subdir with the code
+MANIFEST_OUTPUT_DIR=$HOME/unseenaudio # update this path
 MANIFEST=$MANIFEST_OUTPUT_DIR/Manifest
 OUT_QUANTIZED_FILE=$MANIFEST_OUTPUT_DIR/quantized.txt # output file
 
-AUDIODIR="$HOME/Emotional_Speech_Dataset" # update to the directory containing wav files
+AUDIODIR="$HOME/unseenaudio" # update to the directory containing wav files
 
 source $ZESTDIR/.venv/bin/activate
 PYTHONPATH=$ZESTCODEDIR python -c "import hubert_tokenize as htoken; htoken.generate_manifest('$AUDIODIR', '$MANIFEST_OUTPUT_DIR')"
@@ -51,7 +51,7 @@ PYTHONPATH=$FAIRSEQDIR python $FAIRSEQDIR/examples/textless_nlp/gslm/speech2unit
 
 deactivate
 
-ESDFILE=$MANIFEST_OUTPUT_DIR/test_esd.txt
+ESDFILE=$MANIFEST_OUTPUT_DIR/tokens.txt
 source $ZESTDIR/.venv/bin/activate
 PYTHONPATH=$ZESTCODEDIR python -c "import hubert_tokenize as htoken; htoken.fairseq_tokenfile_to_zest_format('$OUT_QUANTIZED_FILE', '$ESDFILE', '$AUDIODIR')"
 deactivate

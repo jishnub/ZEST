@@ -7,8 +7,11 @@ FILEDIR = os.path.dirname(os.path.realpath(__file__))
 # the number of frames are read in from the actual audio files
 def generate_manifest(audiopath, manifestoutputdir = FILEDIR):
     files = [f for f in os.listdir(audiopath) if os.path.splitext(f)[-1] == ".wav"]
+    if len(files) == 0:
+        raise Exception(f"no wav file found in {audiopath}")
     files.sort()
     manifest_path = os.path.join(manifestoutputdir, "Manifest")
+    print(f"generating manifest for {len(files)} audio files found in",audiopath, "in", manifestoutputdir)
     with open(manifest_path, "w") as manifest:
         manifest.write(audiopath + "\n")
         for wavfile in files:
@@ -28,3 +31,5 @@ def fairseq_tokenfile_to_zest_format(inputfile, outputfile, audiopath):
                 duration = wavf.getnframes() / wavf.getframerate()
             outstr = f'{{"audio": "{wavpath}", "hubert": "{tokens}", "duration": {duration}}}'
             outf.write(outstr + "\n")
+
+    print("Writing output to", outputfile)

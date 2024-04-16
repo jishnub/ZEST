@@ -13,7 +13,8 @@ import os
 import random
 import sys
 import time
-from multiprocessing import Manager, Pool
+from multiprocessing import Manager
+# from multiprocessing import Manager, Pool
 from pathlib import Path
 import torch
 import librosa
@@ -31,12 +32,12 @@ from models import CodeGenerator
 # import amfm_decompy.pYAAPT as pYAAPT
 # from librosa.util import normalize
 CODE_DIR = Path(os.path.realpath(__file__)).parents[1]
-home = Path.home()
-DATADIR = home/"Emotional_Speech_Dataset"
-OUTDIR = home/"ZEST_data"
+HOMEDIR = Path.home()
+DATADIR = HOMEDIR/"Emotional_Speech_Dataset"
+TARGETDIR = DATADIR/"test"
+OUTDIR = HOMEDIR/"ZEST_data"
 pred_DSDT_f0_folder = OUTDIR/"pred_DSDT_f0"
 wav2vec_feats_folder = OUTDIR/"wav2vec_feats"
-REFERENCEDIR = DATADIR/"test"
 
 h = None
 device = None
@@ -84,7 +85,7 @@ def generate(h, generator, code):
     audio = audio.cpu().numpy().astype('int16')
     return audio, rtf
 
-def init_worker(queue, arguments):
+def init_worker(queue, arguments, src_wav_files=None):
     import logging
     logging.getLogger().handlers = []
 
@@ -130,7 +131,7 @@ def init_worker(queue, arguments):
 
         dataset = [(parse_code(x[1]), None, x[0], None) for x in dataset]
     else:
-        file_list = parse_manifest(a.input_code_file, True)
+        file_list = parse_manifest(a.input_code_file, True, src_wav_files=src_wav_files)
         dataset = CodeDataset(file_list, -1, h.code_hop_size, h.n_fft, h.num_mels, h.hop_size, h.win_size,
                               h.sampling_rate, h.fmin, h.fmax, n_cache_reuse=0,
                               fmax_loss=h.fmax_for_loss, device=device,
@@ -161,7 +162,7 @@ def init_worker(queue, arguments):
     torch.manual_seed(seed)
 
 @torch.no_grad()
-def inference(item_index):
+def inference(item_index, target_folder = TARGETDIR):
     code, gt_audio, filename, _ = dataset[item_index]
     code = {k: torch.tensor(v).to(device).unsqueeze(0) for k, v in code.items()}
 
@@ -170,7 +171,6 @@ def inference(item_index):
         fname_out_name = '_'.join(parts[-3:])[:-4]
     else:
         fname_out_name = Path(filename).stem
-
 
     if int(fname_out_name[5:11]) < 350:
         if h.get('f0_vq_params', None) or h.get('f0_quantizer', None):
@@ -190,18 +190,17 @@ def inference(item_index):
             del new_code['f0']
             new_code['f0'] = code['f0']
 
+        # source_num = int(fname_out_name[5:11])
         if h.get('multispkr', None) and a.convert:
-            reference_files = os.listdir(REFERENCEDIR)
-            #Change line 194 for setting same/different source/reference speaker
-            reference_files = [x for x in reference_files if x[:4] != fname_out_name[:4]]
-            reference_files = [x for x in reference_files if int(x[5:11]) >= 350]
-            reference_files = [x for x in reference_files if ".wav" in x]
-            source_num = int(fname_out_name[5:11])
-            #Change line 199 for setting same/different source/reference utterance
-            reference_files = [x for x in reference_files if (int(x[5:11])-source_num)%350!=0]
+            reference_files = [x for x in os.listdir(target_folder) if ".wav" in x]
+            # choose source and target to be different
+            # reference_files = [x for x in reference_files if x[:4] != fname_out_name[:4]]
+            # reference_files = [x for x in reference_files if int(x[5:11]) >= 350]
+            # reference_files = [x for x in reference_files if (int(x[5:11])-source_num)%350!=0]
 
-            for i, filename in enumerate(reference_files):
-                filename_npy = Path(filename).with_suffix(".npy")
+
+            for reference_filename in reference_files:
+                filename_npy = Path(reference_filename).with_suffix(".npy")
                 emo_embed = np.load(wav2vec_feats_folder/filename_npy)
                 # feats = {}
                 f0 = np.load(pred_DSDT_f0_folder/f"{fname_out_name}{filename_npy}")
@@ -217,16 +216,17 @@ def inference(item_index):
                 # audio, rtf = generate(h, generator, code)
                 audio, _ = generate(h, generator, code)
 
-                output_file = Path(a.output_dir)/f"{fname_out_name}{filename}"
+                output_file = Path(a.output_dir)/f"{fname_out_name}{reference_filename}"
                 audio = librosa.util.normalize(audio.astype(np.float32))
                 write(output_file, h.sampling_rate, audio)
 
-def main():
+def main(src_wav_files):
     print('Initializing Inference Process..')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--code_file', default=None)
     parser.add_argument('--input_code_file', default=f"{CODE_DIR}/test_esd_trimmed.txt")
+    parser.add_argument('--target_folder', default=TARGETDIR)
     parser.add_argument('--output_dir', default=OUTDIR/'DSDT')
     parser.add_argument('--emo_folder', default='')
     parser.add_argument('--pitch_folder', default='')
@@ -253,14 +253,14 @@ def main():
     for i in ids:
         idQueue.put(i)
 
-    if os.path.isdir(a.checkpoint_file):
-        config_file = os.path.join(a.checkpoint_file, 'config.json')
-    else:
-        config_file = os.path.join(os.path.split(a.checkpoint_file)[0], 'config.json')
-    with open(config_file) as f:
-        data = f.read()
-    json_config = json.loads(data)
-    h = AttrDict(json_config)
+    # if os.path.isdir(a.checkpoint_file):
+    #     config_file = os.path.join(a.checkpoint_file, 'config.json')
+    # else:
+    #     config_file = os.path.join(os.path.split(a.checkpoint_file)[0], 'config.json')
+    # with open(config_file) as f:
+    #     data = f.read()
+    # json_config = json.loads(data)
+    # h = AttrDict(json_config)
 
     if os.path.isdir(a.checkpoint_file):
         cp_g = scan_checkpoint(a.checkpoint_file, 'g_')
@@ -271,50 +271,56 @@ def main():
         print("Didn't find checkpoints for cp_g")
         return
 
-    if a.code_file is not None:
-        dataset = [x.strip().split('|') for x in open(a.code_file).readlines()]
+    # if a.code_file is not None:
+    #     dataset = [x.strip().split('|') for x in open(a.code_file).readlines()]
 
-        def parse_code(c):
-            c = [int(v) for v in c.split(" ")]
-            return [torch.LongTensor(c).numpy()]
+    #     def parse_code(c):
+    #         c = [int(v) for v in c.split(" ")]
+    #         return [torch.LongTensor(c).numpy()]
 
-        dataset = [(parse_code(x[1]), None, x[0], None) for x in dataset]
-    else:
-        file_list = parse_manifest(a.input_code_file, True)
-        dataset = CodeDataset(file_list, -1, h.code_hop_size, h.n_fft, h.num_mels, h.hop_size, h.win_size,
-                              h.sampling_rate, h.fmin, h.fmax, n_cache_reuse=0, fmax_loss=h.fmax_for_loss, device=device,
-                              f0=h.get('f0', None), multispkr=h.get('multispkr', None),
-                              f0_stats=h.get('f0_stats', None), f0_normalize=h.get('f0_normalize', False),
-                              f0_feats=h.get('f0_feats', False), f0_median=h.get('f0_median', False),
-                              f0_interp=h.get('f0_interp', False), vqvae=h.get('code_vq_params', False),
-                              pad=a.pad, pitch_folder=a.pitch_folder, emo_folder=a.emo_folder)
+    #     dataset = [(parse_code(x[1]), None, x[0], None) for x in dataset]
+    # else:
+    #     file_list = parse_manifest(a.input_code_file, True, src_wav_files=src_wav_files)
+    #     dataset = CodeDataset(file_list, -1, h.code_hop_size, h.n_fft, h.num_mels, h.hop_size, h.win_size,
+    #                           h.sampling_rate, h.fmin, h.fmax, n_cache_reuse=0,
+    #                           fmax_loss=h.fmax_for_loss, device=device,
+    #                           f0=h.get('f0', None), multispkr=h.get('multispkr', None),
+    #                           f0_stats=h.get('f0_stats', None), f0_normalize=h.get('f0_normalize', False),
+    #                           f0_feats=h.get('f0_feats', False), f0_median=h.get('f0_median', False),
+    #                           f0_interp=h.get('f0_interp', False), vqvae=h.get('code_vq_params', False),
+    #                           pad=a.pad, pitch_folder=a.pitch_folder, emo_folder=a.emo_folder)
+    # print("length of dataset:", len(dataset))
 
-    if a.debug:
-        ids = list(range(1))
-        import queue
-        idQueue = queue.Queue()
-        for i in ids:
-            idQueue.put(i)
-        init_worker(idQueue, a)
+    # if a.debug:
+    ids = list(range(1))
+    import queue
+    idQueue = queue.Queue()
+    for i in ids:
+        idQueue.put(i)
+    init_worker(idQueue, a, src_wav_files=src_wav_files)
 
-        for i in range(len(dataset)):
-            inference(i)
-            bar = progbar(i, len(dataset))
-            message = f'{bar} {i}/{len(dataset)} '
-            stream(message)
-            if a.n != -1 and i > a.n:
-                break
-    else:
-        idx = list(range(len(dataset)))
-        random.shuffle(idx)
-        with Pool(1, init_worker, (idQueue, a)) as pool:
-            for i, _ in enumerate(pool.imap(inference, idx), 1):
-                bar = progbar(i, len(idx))
-                message = f'{bar} {i}/{len(idx)} '
-                stream(message)
-                if a.n != -1 and i > a.n:
-                    break
+    for i in range(len(dataset)):
+        inference(i, target_folder=a.target_folder)
+        bar = progbar(i, len(dataset))
+        message = f'{bar} {i}/{len(dataset)} '
+        stream(message)
+        if a.n != -1 and i > a.n:
+            break
+    # else:
+    #     idx = list(range(len(dataset)))
+    #     random.shuffle(idx)
+    #     with Pool(1, init_worker, (idQueue, a)) as pool:
+    #         for i, _ in enumerate(pool.imap(inference, idx), 1):
+    #             bar = progbar(i, len(idx))
+    #             message = f'{bar} {i}/{len(idx)} '
+    #             stream(message)
+    #             if a.n != -1 and i > a.n:
+    #                 break
     print() # newline
 
 if __name__ == '__main__':
-    main()
+    # smaller list for testing, update this
+    src_wav_files = ["0011_000021"]
+    # src_wav_files = ["0011_000021", "0012_000022", "0013_000025", "0014_000032", "0015_000034",
+    #                     "0016_000035", "0017_000038", "0018_000043", "0019_000023", "0020_000047"]
+    main(src_wav_files)
